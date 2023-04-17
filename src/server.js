@@ -42,5 +42,12 @@ app.get('/mentions', async (req, res) => {
     res.send(bucketized)
 })
 
+app.get('/search', async (req, res) => {
+    const searchTerm = req.query.search
+    const handler = new PgHandler(client, TABLE)
+    const result = await handler.search(searchTerm)
+    res.send(result)
+})
+
 app.listen(PORT)
 console.log("Listening on port", PORT, "...")

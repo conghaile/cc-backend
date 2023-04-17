@@ -30,6 +30,15 @@ class PgHandler{
         })
         return result.rows
     }
+
+    async search(searchTerm) {
+        let query = `SELECT DISTINCT coin FROM ${this.table} WHERE coin LIKE '${searchTerm}%'`
+        let result = await this.client.query({
+            rowMode: 'array',
+            text: query
+        })
+        return result.rows
+    }
 }
 
 export default PgHandler
