@@ -5,6 +5,7 @@ import PgHandler from './pgHandler.js'
 import cors from 'cors';
 import { timeframeMap, bucketizeMap } from './constants.js'
 import bucketize from './helpers.js'
+import bodyParser from 'body-parser'
 const { Client } = pkg;
 
 dotenv.config()
@@ -13,6 +14,7 @@ const app = express()
 app.use(cors({
     origin: 'http://localhost:3000'
 }))
+app.use(bodyParser.json())
 
 const PORT = Number(process.env.PORT)
 const TABLE = process.env.TABLE
@@ -47,6 +49,11 @@ app.get('/search', async (req, res) => {
     const handler = new PgHandler(client, TABLE)
     const result = await handler.search(searchTerm)
     res.send(result)
+})
+
+app.post('/login', async (req, res) => {
+    console.log(req.body)
+    res.sendStatus(200)
 })
 
 app.listen(PORT)
