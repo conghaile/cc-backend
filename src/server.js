@@ -1,10 +1,10 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import pkg from 'pg';
-import PgHandler from './pgHandler.js'
+import PgHandler from './db/pgHandler.js'
 import cors from 'cors';
-import { timeframeMap, bucketizeMap } from './constants.js'
-import bucketize from './helpers.js'
+import { timeframeMap, bucketizeMap } from './coin_logic/constants.js'
+import bucketize from './coin_logic/bucketize.js'
 import bodyParser from 'body-parser'
 const { Client } = pkg;
 
@@ -13,6 +13,9 @@ dotenv.config()
 const app = express()
 app.use(cors({
     origin: 'http://localhost:3000'
+}))
+app.use(bodyParser.urlencoded({
+    extended: false
 }))
 app.use(bodyParser.json())
 
@@ -52,6 +55,11 @@ app.get('/search', async (req, res) => {
 })
 
 app.post('/login', async (req, res) => {
+    console.log(req.body)
+    res.sendStatus(200)
+})
+
+app.post('/native-signup', async (req, res) => {
     console.log(req.body)
     res.sendStatus(200)
 })

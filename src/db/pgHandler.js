@@ -1,4 +1,4 @@
-import { timeframeMap } from './constants.js'
+import { timeframeMap } from '../coin_logic/constants.js'
 
 class PgHandler{
     constructor(client, table) {
