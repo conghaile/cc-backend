@@ -54,14 +54,19 @@ app.get('/search', async (req, res) => {
     res.send(result)
 })
 
-app.post('/login', async (req, res) => {
+app.post('/native-login', async (req, res) => {
     console.log(req.body)
     res.sendStatus(200)
 })
 
 app.post('/native-signup', async (req, res) => {
-    console.log(req.body)
-    res.sendStatus(200)
+    const handler = new PgHandler(client, TABLE)
+    const result = await handler.newUser(req.body.email, req.body.password)
+    if (result == 1) {
+        res.sendStatus(200)
+    } else {
+        res.sendStatus(401)
+    }
 })
 
 app.listen(PORT)
