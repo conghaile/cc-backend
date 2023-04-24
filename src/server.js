@@ -6,6 +6,7 @@ import cors from 'cors';
 import { timeframeMap, bucketizeMap } from './coin_logic/constants.js'
 import bucketize from './coin_logic/bucketize.js'
 import bodyParser from 'body-parser'
+import { newSession } from './auth/Session.js'
 const { Client } = pkg;
 
 dotenv.config()
@@ -55,8 +56,14 @@ app.get('/search', async (req, res) => {
 })
 
 app.post('/native-login', async (req, res) => {
-    console.log(req.body)
-    res.sendStatus(200)
+    const handler = new PgHandler(client, TABLE)
+    const result = await handler.login(req.body.email, req.body.password)
+    if (result) {
+        console.log("Logged in!")
+        res.sendStatus(200)
+    } else {
+        res.sendStatus(401)
+    }
 })
 
 app.post('/native-signup', async (req, res) => {

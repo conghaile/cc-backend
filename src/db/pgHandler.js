@@ -58,6 +58,22 @@ class PgHandler{
             return 0
         }
     }
+
+    async login(email, password) {
+        let query = `SELECT * FROM users WHERE email = '${email}'`
+        let result = await this.client.query({
+            rowMode: 'array',
+            text: query
+        })
+        if (result.rowCount === 0) {
+            return 0
+        }
+        let encrypted = result.rows[0][1]
+        if (!await verifyPassword(password, encrypted)) {
+            return 0
+        }
+        return 1
+    }
 }
 
 export default PgHandler
