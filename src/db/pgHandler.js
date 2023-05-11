@@ -49,8 +49,8 @@ class PgHandler{
         })
         if (result.rows.length == 0) {
             const encrypted = await newPassword(password)
-            let query = `INSERT INTO users VALUES('${email}', '${encrypted}')`
-            let result = await this.client.query({
+            let query = `INSERT INTO users VALUES('${email}', '${encrypted}', '0')`
+            await this.client.query({
                 text: query
             })
             return 1
@@ -60,13 +60,18 @@ class PgHandler{
     }
 
     async login(email, password) {
+        // Returns 0 if password is incorrect, 1 if successful, 2 if account is unverified, 3 if no accounts exists with given email
         let query = `SELECT * FROM users WHERE email = '${email}'`
         let result = await this.client.query({
             rowMode: 'array',
             text: query
         })
         if (result.rowCount === 0) {
-            return 0
+            return 3
+        }
+        let verified = result.rows[0][2]
+        if (!verified) {
+            return 2
         }
         let encrypted = result.rows[0][1]
         if (!await verifyPassword(password, encrypted)) {
@@ -74,6 +79,8 @@ class PgHandler{
         }
         return 1
     }
+
+    
 }
 
 export default PgHandler
