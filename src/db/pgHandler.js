@@ -60,7 +60,7 @@ class PgHandler{
     }
 
     async login(email, password) {
-        // Returns 0 if password is incorrect, 1 if successful, 2 if account is unverified, 3 if no accounts exists with given email
+        // Returns 0 if password is incorrect, 1 if successful, 2 if account is unverified, 3 if no account exists with given email
         let query = `SELECT * FROM users WHERE email = '${email}'`
         let result = await this.client.query({
             rowMode: 'array',
@@ -80,6 +80,17 @@ class PgHandler{
         return 1
     }
 
+    async verifyUser(email) {
+        let query = `UPDATE users SET verified = '1' WHERE email = '${email}'`
+        let result = await this.client.query({
+            text: query,
+            rowMode: 'array'
+        })
+        if (result.rowCount !== 1) {
+            return 0
+        }
+        return 1
+    }
     
 }
 

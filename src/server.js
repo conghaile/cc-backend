@@ -11,7 +11,7 @@ import { createClient } from 'redis'
 import cookieParser from 'cookie-parser'
 const { Client } = pkg;
 import { MailService } from '@sendgrid/mail'
-import { test } from './auth/Email.js'
+import { sendVerification } from './auth/Email.js'
 
 //Init environment variables
 dotenv.config()
@@ -96,25 +96,14 @@ app.get('/search', async (req, res) => {
 app.post('/native-login', async (req, res) => {
     const handler = new PgHandler(client, TABLE)
     const result = await handler.login(req.body.email, req.body.password)
-    // if (result == 1) {
-    //     // Generate and store session token
-    //     const sessionToken = await newSession(req.body.email, redisClient)
-    //     // Send session token in response
-    //     res.cookie('SESSION_ID', sessionToken, {
-    //         maxAge: 604800000,
-    //         sameSite: 'none',
-    //         secure: true
-    //     })
-    //     res.sendStatus(200)
-    // } else {
-    //     res.sendStatus(401)
-    // }
+    console.log(result)
     switch(result) {
         case 0:
             res.sendStatus(401)
             break
         case 1:
-            const sessionToken = await newSession(req.body.emai, redisClient)
+            console.log("Success!")
+            const sessionToken = await newSession(req.body.email, redisClient)
             res.cookie('SESSION_ID', sessionToken, {
                 maxAge: 604800000,
                 sameSite: 'none',
@@ -138,27 +127,53 @@ app.post('/native-signup', async (req, res) => {
         //Generate and store session token for account verification
         const sessionToken = await newSession(req.body.email, redisClient, 86400)
         //Send verification email
-        const sent = await test(req.body.email, sgClient, sessionToken)
+        const sent = await sendVerification(req.body.email, sgClient, sessionToken)
         if (sent !== null) {
             console.log(sent)
             res.sendStatus(401)
         } else {
             res.sendStatus(200)
         }
-
-        // res.cookie('SESSION_ID', sessionToken, {
-        //     maxAge: 604800000,
-            
-        // })
     } else {
         res.sendStatus(401)
         
     }
 })
 
+app.get('/verify-user', async (req, res) => {
+    //Definitely need to handle each else differently but I can't be fucked right now
+    const handler = new PgHandler(client, TABLE)
+    const token = req.query.token
+    if (token !== null) {
+        console.log(typeof token)
+        const email = await redisClient.get(token)
+        console.log(email)
+        if (email !== null) {
+            await redisClient.del(token)
+            const result = await handler.verifyUser(email)
+            if (result === 1) {
+                const newToken = await newSession(email, redisClient, 604800)
+                console.log(newToken)
+                res.cookie('SESSION_ID', newToken, {
+                    maxAge: 604800000,
+                    sameSite: 'none',
+                    secure: true,
+                })
+                res.sendStatus(200)
+            } else {
+                res.sendStatus(404)
+            }
+        } else {
+            res.sendStatus(404)
+        }
+    } else {
+        res.sendStatus(404)
+    }
+})
+
 app.get('/logout', async (req, res) => {
     if (req.loggedIn) {
-        await redisClient.hDel(req.cookies.SESSION_ID)
+        await redisClient.del(req.cookies.SESSION_ID)
     }
     res.sendStatus(200)
 })
