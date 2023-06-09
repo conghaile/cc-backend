@@ -39,14 +39,18 @@ sgClient.setApiKey(process.env.SGKEY)
 const checkSession = async (req, res, next) => {
     const cookie = req.cookies.SESSION_ID
     if (cookie !== undefined) {
-        const email = await redisClient.get(cookie)
-        if (email !== null) {
-            req.email = email
-            req.loggedIn = true
+        if (cookie !== "PENDING_VERIFICATION") {
+            const email = await redisClient.get(cookie)
+            if (email !== null) {
+                req.email = email
+                req.loggedIn = true
+            } else {
+                req.loggedIn = false
+            }
         } else {
-            req.loggedIn = false
-            
+            req.pending = true
         }
+        
     } else {
         req.loggedIn = false
     }
@@ -72,7 +76,8 @@ app.use(checkSession)
 app.get('/coins', async (req, res) => {
     
     const handler = new PgHandler(client, TABLE)
-    const result = await handler.last24hours()
+    const result = await handler.testAll()
+    // const result = await handler.last24hours()
     res.send(result)
 })
 
@@ -94,49 +99,65 @@ app.get('/search', async (req, res) => {
 })
 
 app.post('/native-login', async (req, res) => {
-    const handler = new PgHandler(client, TABLE)
-    const result = await handler.login(req.body.email, req.body.password)
-    console.log(result)
-    switch(result) {
-        case 0:
-            res.sendStatus(401)
-            break
-        case 1:
-            console.log("Success!")
-            const sessionToken = await newSession(req.body.email, redisClient)
-            res.cookie('SESSION_ID', sessionToken, {
-                maxAge: 604800000,
-                sameSite: 'none',
-                secure: true,
-            })
-            res.sendStatus(200)
-            break
-        case 2:
-            res.sendStatus(301)
-            break
-        case 3:
-            res.sendStatus(404)
-        
+    if (req.loggedIn === false) {
+        const handler = new PgHandler(client, TABLE)
+        const result = await handler.login(req.body.email, req.body.password)
+        console.log(result)
+        switch(result) {
+            //Incorrect password
+            case 0:
+                res.sendStatus(401)
+                break
+            //Success
+            case 1:
+                console.log("Success!")
+                const sessionToken = await newSession(req.body.email, redisClient)
+                res.cookie('SESSION_ID', sessionToken, {
+                    maxAge: 604800000,
+                    sameSite: 'none',
+                    secure: true,
+                })
+                res.sendStatus(200)
+                break
+            //Account still unverified
+            case 2:
+                res.sendStatus(403)
+                break
+            //No account exists with given email
+            case 3:
+                res.sendStatus(404)
+            
+        }
+    }
+    else {
+        res.sendStatus(403)
     }
 })
 
 app.post('/native-signup', async (req, res) => {
     const handler = new PgHandler(client, TABLE)
-    const result = await handler.newUser(req.body.email, req.body.password)
-    if (result === 1) {
-        //Generate and store session token for account verification
-        const sessionToken = await newSession(req.body.email, redisClient, 86400)
-        //Send verification email
-        const sent = await sendVerification(req.body.email, sgClient, sessionToken)
-        if (sent !== null) {
-            console.log(sent)
+    //Create new session token for verification email
+    const sessionToken = await newSession(req.body.email, redisClient, 86400)
+    //Try sending email
+    const sent = await sendVerification(req.body.email, sgClient, sessionToken)
+    if (sent !== null) {
+        //If email fails, delete session token from redis and send error response
+        await redisClient.del(sessionToken)
+        res.sendStatus(502)
+    } else {
+        const result = await handler.newUser(req.body.email, req.body.password)
+        if (result !== 1) {
+            //If account already exists, send error response
             res.sendStatus(401)
         } else {
+            //Set client cookie to indicate pending verification
+            res.cookie('SESSION_ID', 'PENDING_VERIFICATION', {
+                maxAge: 86400000,
+                sameSite: 'none',
+                secure: true,
+            })
             res.sendStatus(200)
         }
-    } else {
-        res.sendStatus(401)
-        
     }
 })
 
@@ -160,14 +181,17 @@ app.get('/verify-user', async (req, res) => {
                     secure: true,
                 })
                 res.sendStatus(200)
+            //If email somehow disappears from DB after initial signup
             } else {
-                res.sendStatus(404)
+                res.sendStatus(502)
             }
+        //If verification token expired
         } else {
             res.sendStatus(404)
         }
+    //If no token in URL
     } else {
-        res.sendStatus(404)
+        res.sendStatus(400)
     }
 })
 

@@ -9,7 +9,11 @@ export const sendVerification = async (email, client, token) => {
     try {
         await client.send(msg)
         return null
-    } catch (e) {
-        return e
+    } catch (error) {
+        console.error(error)
+
+        if (error.response) {
+            console.error(error.response.body)
+        }
     }
 }

@@ -7,6 +7,15 @@ class PgHandler{
         this.table = table
     }
 
+    async testAll() {
+        let query = `SELECT coin, COUNT(coin) FROM ${this.table} WHERE time > 0 GROUP BY coin HAVING COUNT(coin) > 4 ORDER BY COUNT DESC;`
+        let result = await this.client.query({
+            rowMode: 'array',
+            text: query
+        })
+        return result.rows
+    }
+
     async last24hours() {
         let query = `SELECT coin, COUNT(coin) FROM ${this.table} WHERE time > (SELECT EXTRACT(epoch from now())) - 604800 GROUP BY coin HAVING COUNT(coin) > 4 ORDER BY COUNT DESC;`
         let result = await this.client.query({
@@ -66,6 +75,8 @@ class PgHandler{
             rowMode: 'array',
             text: query
         })
+        console.log(result.rowCount)
+        console.log(result.rows)
         if (result.rowCount === 0) {
             return 3
         }
