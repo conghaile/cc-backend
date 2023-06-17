@@ -62,6 +62,7 @@ class PgHandler{
             await this.client.query({
                 text: query
             })
+            query = `INSERT INTO user_favorites VALUES('${email}', NULL)`
             return 1
         } else {
             return 0
@@ -75,8 +76,7 @@ class PgHandler{
             rowMode: 'array',
             text: query
         })
-        console.log(result.rowCount)
-        console.log(result.rows)
+        
         if (result.rowCount === 0) {
             return 3
         }
@@ -102,7 +102,57 @@ class PgHandler{
         }
         return 1
     }
-    
+
+    async getFavorites(email) {
+        let query = `SELECT favorites FROM user_favorites WHERE email = '${email}'`
+        let result = await this.client.query({
+            text: query,
+            rowMode: 'array'
+        })
+        console.log(result)
+        return result.rows[0][0]
+    }
+
+    async addFavorite(email, coin) {
+        let currentFavs = await this.getFavorites(email)
+        console.log(currentFavs)
+        if (currentFavs === null) {
+            currentFavs = [coin]
+        } else {
+            currentFavs = JSON.parse(currentFavs)
+            currentFavs.push(coin)
+        }
+        let newFavs = JSON.stringify(currentFavs)
+        console.log(newFavs)
+        
+        let query = `UPDATE user_favorites SET favorites = '${newFavs}' WHERE email = '${email}'`
+        let result = await this.client.query({
+            text: query
+        })
+        
+        return coin
+    }
+
+    async deleteFavorite(email, coin) {
+        
+        const currentFavs = await this.getFavorites(email)
+        if (currentFavs !== null) {
+            let newFavs = JSON.parse(currentFavs).filter(fav => fav !== coin)
+            let query
+            if (newFavs.length > 0) {
+                query = `UPDATE user_favorites SET favorites = '${JSON.stringify(newFavs)}' WHERE email = '${email}'`
+            } else {
+                query = `UPDATE user_favorites SET favorites = NULL WHERE email = '${email}'`
+            }
+            
+            let result = await this.client.query({
+                text: query
+            })
+            
+            return coin
+        }
+        return 0
+    }
 }
 
 export default PgHandler

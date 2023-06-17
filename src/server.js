@@ -22,7 +22,7 @@ redisClient.on('error', err => console.log('Redis Client Error:', err))
 await redisClient.connect()
 
 const PORT = Number(process.env.PORT)
-const TABLE = process.env.TABLE
+const DBASE = process.env.DBASE
 const client = new Client({
     user: process.env.DBUSER,
     host: process.env.DBHOST,
@@ -32,12 +32,15 @@ const client = new Client({
 })
 client.connect()
 
+const postgresHandler = new PgHandler(client, DBASE)
+
 const sgClient = new MailService()
 sgClient.setApiKey(process.env.SGKEY)
 
 //Middleware that checks whether user is logged in or not by reading the cookie
 const checkSession = async (req, res, next) => {
     const cookie = req.cookies.SESSION_ID
+    console.log(cookie)
     if (cookie !== undefined) {
         if (cookie !== "PENDING_VERIFICATION") {
             const email = await redisClient.get(cookie)
@@ -74,18 +77,16 @@ app.use(checkSession)
 
 
 app.get('/coins', async (req, res) => {
-    
-    const handler = new PgHandler(client, TABLE)
-    const result = await handler.testAll()
-    // const result = await handler.last24hours()
+    const result = await postgresHandler.testAll()
+    // const result = await postgresHandler.last24hours()
     res.send(result)
 })
 
 app.get('/mentions', async (req, res) => {
     const coin = req.query.coin
     const timeframe = req.query.timeframe
-    const handler = new PgHandler(client, TABLE)
-    const result = await handler.mentions(coin, timeframe)
+    
+    const result = await postgresHandler.mentions(coin, timeframe)
     const bucketized = bucketize(result, timeframe)
 
     res.send(bucketized)
@@ -93,15 +94,15 @@ app.get('/mentions', async (req, res) => {
 
 app.get('/search', async (req, res) => {
     const searchTerm = req.query.search
-    const handler = new PgHandler(client, TABLE)
-    const result = await handler.search(searchTerm)
+    
+    const result = await postgresHandler.search(searchTerm)
     res.send(result)
 })
 
 app.post('/native-login', async (req, res) => {
     if (req.loggedIn === false) {
-        const handler = new PgHandler(client, TABLE)
-        const result = await handler.login(req.body.email, req.body.password)
+        
+        const result = await postgresHandler.login(req.body.email, req.body.password)
         console.log(result)
         switch(result) {
             //Incorrect password
@@ -135,7 +136,7 @@ app.post('/native-login', async (req, res) => {
 })
 
 app.post('/native-signup', async (req, res) => {
-    const handler = new PgHandler(client, TABLE)
+    
     //Create new session token for verification email
     const sessionToken = await newSession(req.body.email, redisClient, 86400)
     //Try sending email
@@ -145,7 +146,7 @@ app.post('/native-signup', async (req, res) => {
         await redisClient.del(sessionToken)
         res.sendStatus(502)
     } else {
-        const result = await handler.newUser(req.body.email, req.body.password)
+        const result = await postgresHandler.newUser(req.body.email, req.body.password)
         if (result !== 1) {
             //If account already exists, send error response
             res.sendStatus(401)
@@ -163,18 +164,18 @@ app.post('/native-signup', async (req, res) => {
 
 app.get('/verify-user', async (req, res) => {
     //Definitely need to handle each else differently but I can't be fucked right now
-    const handler = new PgHandler(client, TABLE)
+    
     const token = req.query.token
     if (token !== null) {
-        console.log(typeof token)
+        
         const email = await redisClient.get(token)
-        console.log(email)
+        
         if (email !== null) {
             await redisClient.del(token)
-            const result = await handler.verifyUser(email)
+            const result = await postgresHandler.verifyUser(email)
             if (result === 1) {
                 const newToken = await newSession(email, redisClient, 604800)
-                console.log(newToken)
+                
                 res.cookie('SESSION_ID', newToken, {
                     maxAge: 604800000,
                     sameSite: 'none',
@@ -210,6 +211,51 @@ app.get('/ensure-login', async (req, res) => {
     } else {
         res.sendStatus(401)
     }
+})
+
+app.get('/favorites', async (req, res) => {
+    if (req.loggedIn) {
+        const result = await postgresHandler.getFavorites(req.email)
+        if (result !== null) {
+            res.send({"coins": JSON.parse(result)})
+        } else {
+            res.send({"coins": []})
+        }
+    } else {
+        res.sendStatus(403)
+    }
+})
+
+app.post('/favorites', async (req, res) => {
+    if (req.loggedIn) {
+        const coin = req.body.coin
+        const email = req.email
+        
+        const result = await postgresHandler.addFavorite(email, coin)
+        res.send({"coin": result})
+    } else {
+        res.sendStatus(403)
+    }
+    
+})
+
+app.delete('/favorites', async (req, res) => {
+    
+    if (req.loggedIn) {
+        const coin = req.query.coin
+        const email = req.email
+        
+        const result = await postgresHandler.deleteFavorite(email, coin)
+        if (result !== 0) {
+            res.send({"coin": result})
+        } else {
+            res.sendStatus(404)
+        }
+        
+    } else {
+        res.sendStatus(403)
+    }
+    
 })
 
 app.listen(PORT)
