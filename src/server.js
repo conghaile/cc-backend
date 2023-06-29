@@ -40,7 +40,6 @@ sgClient.setApiKey(process.env.SGKEY)
 //Middleware that checks whether user is logged in or not by reading the cookie
 const checkSession = async (req, res, next) => {
     const cookie = req.cookies.SESSION_ID
-    console.log(cookie)
     if (cookie !== undefined) {
         if (cookie !== "PENDING_VERIFICATION") {
             const email = await redisClient.get(cookie)
@@ -103,7 +102,6 @@ app.post('/native-login', async (req, res) => {
     if (req.loggedIn === false) {
         
         const result = await postgresHandler.login(req.body.email, req.body.password)
-        console.log(result)
         switch(result) {
             //Incorrect password
             case 0:
@@ -111,7 +109,6 @@ app.post('/native-login', async (req, res) => {
                 break
             //Success
             case 1:
-                console.log("Success!")
                 const sessionToken = await newSession(req.body.email, redisClient)
                 res.cookie('SESSION_ID', sessionToken, {
                     maxAge: 604800000,

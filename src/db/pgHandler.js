@@ -109,13 +109,11 @@ class PgHandler{
             text: query,
             rowMode: 'array'
         })
-        console.log(result)
         return result.rows[0][0]
     }
 
     async addFavorite(email, coin) {
         let currentFavs = await this.getFavorites(email)
-        console.log(currentFavs)
         if (currentFavs === null) {
             currentFavs = [coin]
         } else {
@@ -123,7 +121,6 @@ class PgHandler{
             currentFavs.push(coin)
         }
         let newFavs = JSON.stringify(currentFavs)
-        console.log(newFavs)
         
         let query = `UPDATE user_favorites SET favorites = '${newFavs}' WHERE email = '${email}'`
         let result = await this.client.query({
